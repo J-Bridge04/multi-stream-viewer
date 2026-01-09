@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, Trash2, Grid, Maximize2 } from 'lucide-react';
 
 export default function MultiStreamViewer() {
@@ -6,8 +6,92 @@ export default function MultiStreamViewer() {
     { id: 1, url: '', platform: 'twitch', username: '' }
   ]);
   const [layout, setLayout] = useState('grid');
+  const [twitchToken, setTwitchToken] = useState(null);
+  const [suggestions, setSuggestions] = useState({});
+  const [activeSuggestions, setActiveSuggestions] = useState(null);
+  const debounceTimers = useRef({});
 
-  const addStream = () => {
+  // Get Twitch OAuth token on component mount
+  useEffect(() => {
+    const getTwitchToken = async () => {
+      try {
+        const response = await fetch('https://id.twitch.tv/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            client_id: import.meta.env.VITE_TWITCH_CLIENT_ID,
+            client_secret: import.meta.env.VITE_TWITCH_CLIENT_SECRET,
+            grant_type: 'client_credentials',
+          }).toString(),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get Twitch token');
+        }
+
+        const data = await response.json();
+        setTwitchToken(data.access_token);
+      } catch (error) {
+        console.error('Error getting Twitch token:', error);
+      }
+    };
+
+    getTwitchToken();
+  }, []);
+
+  // Search for Twitch channels
+  const searchTwitchChannels = async (query, streamId) => {
+    if (!query || !twitchToken) {
+      setSuggestions(prev => ({ ...prev, [streamId]: [] }));
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.twitch.tv/helix/search/channels?query=${encodeURIComponent(query)}&first=5`,
+        {
+          headers: {
+            'Client-ID': import.meta.env.VITE_TWITCH_CLIENT_ID,
+            'Authorization': `Bearer ${twitchToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to search channels');
+      }
+
+      const data = await response.json();
+      const channelNames = data.data.map(channel => channel.broadcaster_login);
+      setSuggestions(prev => ({ ...prev, [streamId]: channelNames }));
+    } catch (error) {
+      console.error('Error searching channels:', error);
+    }
+  };
+
+  // Debounced search handler
+  const handleSearchInput = (streamId, value) => {
+    updateStream(streamId, 'username', value);
+
+    // Clear existing timer
+    if (debounceTimers.current[streamId]) {
+      clearTimeout(debounceTimers.current[streamId]);
+    }
+
+    // Set new timer
+    debounceTimers.current[streamId] = setTimeout(() => {
+      searchTwitchChannels(value, streamId);
+    }, 300);
+  };
+
+  // Handle suggestion click
+  const selectSuggestion = (streamId, channelName) => {
+    updateStream(streamId, 'username', channelName);
+    setSuggestions(prev => ({ ...prev, [streamId]: [] }));
+    setActiveSuggestions(null);
+  };
     setStreams([...streams, { 
       id: Date.now(), 
       url: '', 
@@ -83,39 +167,68 @@ export default function MultiStreamViewer() {
  
         <div className="mb-6 space-y-4">
           {streams.map((stream, index) => (
-            <div key={stream.id} className="bg-gray-800 p-4 rounded-lg flex items-center gap-4">
-              <span className="text-gray-400 font-mono">#{index + 1}</span>
-              
-              <select
-                value={stream.platform}
-                onChange={(e) => updateStream(stream.id, 'platform', e.target.value)}
-                className="bg-gray-700 px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-purple-500"
-              >
-                <option value="twitch">Twitch</option>
-                <option value="youtube">YouTube</option>
-                <option value="kick">Kick</option>
-              </select>
-
-              <input
-                type="text"
-                value={stream.username}
-                onChange={(e) => updateStream(stream.id, 'username', e.target.value)}
-                placeholder={
-                  stream.platform === 'twitch' ? 'Channel name' :
-                  stream.platform === 'youtube' ? 'Video ID or @handle' :
-                  'Channel name'
-                }
-                className="flex-1 bg-gray-700 px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-purple-500"
-              />
-
-              {streams.length > 1 && (
-                <button
-                  onClick={() => removeStream(stream.id)}
-                  className="text-red-400 hover:text-red-300 p-2"
+            <div key={stream.id}>
+              <div className="bg-gray-800 p-4 rounded-lg flex items-center gap-4">
+                <span className="text-gray-400 font-mono">#{index + 1}</span>
+                
+                <select
+                  value={stream.platform}
+                  onChange={(e) => updateStream(stream.id, 'platform', e.target.value)}
+                  className="bg-gray-700 px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-purple-500"
                 >
-                  <Trash2 size={20} />
-                </button>
-              )}
+                  <option value="twitch">Twitch</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="kick">Kick</option>
+                </select>
+
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={stream.username}
+                    onChange={(e) => {
+                      if (stream.platform === 'twitch') {
+                        handleSearchInput(stream.id, e.target.value);
+                      } else {
+                        updateStream(stream.id, 'username', e.target.value);
+                      }
+                    }}
+                    onFocus={() => setActiveSuggestions(stream.id)}
+                    onBlur={() => setTimeout(() => setActiveSuggestions(null), 100)}
+                    placeholder={
+                      stream.platform === 'twitch' ? 'Channel name' :
+                      stream.platform === 'youtube' ? 'Video ID or @handle' :
+                      'Channel name'
+                    }
+                    className="w-full bg-gray-700 px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-purple-500"
+                  />
+                  
+                  {/* Suggestions Dropdown */}
+                  {stream.platform === 'twitch' && 
+                    activeSuggestions === stream.id && 
+                    suggestions[stream.id]?.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded z-10">
+                      {suggestions[stream.id].map((suggestion, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => selectSuggestion(stream.id, suggestion)}
+                          className="px-3 py-2 hover:bg-gray-600 cursor-pointer text-sm"
+                        >
+                          {suggestion}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {streams.length > 1 && (
+                  <button
+                    onClick={() => removeStream(stream.id)}
+                    className="text-red-400 hover:text-red-300 p-2"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
