@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, Trash2, Grid, Maximize2 } from 'lucide-react';
 
 export default function MultiStreamViewer() {
-  const [streams, setStreams] = useState([
-    { id: 1, url: '', platform: 'twitch', username: '' }
-  ]);
+  const [streams, setStreams] = useState([]);
   const [layout, setLayout] = useState('grid');
   const [twitchToken, setTwitchToken] = useState(null);
   const [userToken, setUserToken] = useState(null);
@@ -13,6 +11,9 @@ export default function MultiStreamViewer() {
   const [activeSuggestions, setActiveSuggestions] = useState(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [expandedStreams, setExpandedStreams] = useState({});
+  const [searchInput, setSearchInput] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('twitch');
+  const [viewingStreamId, setViewingStreamId] = useState(null);
   const debounceTimers = useRef({});
 
   // Get Twitch OAuth token on component mount
@@ -169,12 +170,15 @@ export default function MultiStreamViewer() {
   };
 
   const addStream = () => {
+    if (!searchInput.trim()) return;
+    if (streams.length >= 12) return;
     setStreams([...streams, { 
       id: Date.now(), 
       url: '', 
-      platform: 'twitch',
-      username: '' 
+      platform: selectedPlatform,
+      username: searchInput.trim()
     }]);
+    setSearchInput('');
   };
 
   const signIn = () => {
@@ -211,17 +215,20 @@ export default function MultiStreamViewer() {
     }
   };
 
-  const getGridClass = () => {
+  const getGridColumns = () => {
     const count = streams.length;
-    if (count === 1) return 'grid-cols-1';
-    if (count === 2) return 'grid-cols-2';
-    if (count <= 4) return 'grid-cols-2';
-    return 'grid-cols-3';
+    if (count === 0) return 1;
+    if (count === 1) return 1;
+    if (count === 2) return 2;
+    if (count <= 4) return 2;
+    if (count <= 6) return 3;
+    if (count <= 9) return 3;
+    return 4;
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 flex">
-      <div className="max-w-7xl mx-auto flex-1 flex flex-col">
+      <div className="w-full flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Multi-Stream Viewer</h1>
           <div className="flex items-center gap-2">
@@ -252,110 +259,79 @@ export default function MultiStreamViewer() {
           </div>
         </div>
 
-        <div className="flex gap-4">
-          {/* Left sidebar - stream controls */}
-          <div className={`flex-shrink-0 space-y-2 transition-all duration-300 ${showSidebar ? 'w-72' : 'w-14'}`}>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={addStream}
-                className={`flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded text-sm transition flex-1 ${!showSidebar ? 'px-1' : ''}`}
-              >
-                <Plus size={16} />
-                {showSidebar && 'Add Stream'}
-              </button>
-              <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-sm transition"
-              >
-                {showSidebar ? '◀' : '▶'}
-              </button>
-            </div>
-            
-            {showSidebar && streams.map((stream, index) => (
-              <div key={stream.id} className="bg-gray-800 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setExpandedStreams(prev => ({
-                    ...prev,
-                    [stream.id]: !prev[stream.id]
-                  }))}
-                  className="w-full bg-gray-800 hover:bg-gray-700 p-2 flex items-center justify-between transition"
-                >
-                  <span className="text-gray-400 font-mono text-sm">#{index + 1}</span>
-                  <span className="text-sm">{expandedStreams[stream.id] ? '▼' : '▶'}</span>
-                </button>
-
-                {expandedStreams[stream.id] && (
-                  <div className="p-2 border-t border-gray-700 space-y-2">
-                    <select
-                      value={stream.platform}
-                      onChange={(e) => updateStream(stream.id, 'platform', e.target.value)}
-                      className="w-full bg-gray-700 px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-purple-500 text-sm mb-2"
-                    >
-                      <option value="twitch">Twitch</option>
-                      <option value="youtube">YouTube</option>
-                      <option value="kick">Kick</option>
-                    </select>
-
-                    <div className="relative mb-2">
-                      <input
-                        type="text"
-                        value={stream.username}
-                        onChange={(e) => {
-                          if (stream.platform === 'twitch') {
-                            handleSearchInput(stream.id, e.target.value);
-                          } else {
-                            updateStream(stream.id, 'username', e.target.value);
-                          }
-                        }}
-                        onFocus={() => setActiveSuggestions(stream.id)}
-                        onBlur={() => setTimeout(() => setActiveSuggestions(null), 100)}
-                        placeholder={
-                          stream.platform === 'twitch' ? 'Channel name' :
-                          stream.platform === 'youtube' ? 'Video ID or @handle' :
-                          'Channel name'
-                        }
-                        className="w-full bg-gray-700 px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-purple-500 text-sm"
-                      />
-                      
-                      {/* Suggestions Dropdown */}
-                      {stream.platform === 'twitch' && 
-                        activeSuggestions === stream.id && 
-                        suggestions[stream.id]?.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded z-10">
-                          {suggestions[stream.id].map((suggestion, idx) => (
-                            <div
-                              key={idx}
-                              onClick={() => selectSuggestion(stream.id, suggestion)}
-                              className="px-2 py-1 hover:bg-gray-600 cursor-pointer text-xs"
-                            >
-                              {suggestion}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {streams.length > 1 && (
-                      <button
-                        onClick={() => removeStream(stream.id)}
-                        className="w-full text-red-400 hover:text-red-300 p-1 text-sm"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+        {/* Top section - stream controls */}
+        <div className="bg-gray-800 rounded-lg p-3 space-y-2 mb-4">
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addStream()}
+              placeholder="Stream name"
+              className="flex-1 bg-gray-700 px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-purple-500 text-sm"
+            />
+            <select
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="bg-gray-700 px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-purple-500 text-sm"
+            >
+              <option value="twitch">Twitch</option>
+              <option value="youtube">YouTube</option>
+              <option value="kick">Kick</option>
+            </select>
+            <button
+              onClick={addStream}
+              className="flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 px-4 py-1 rounded text-sm transition"
+            >
+              <Plus size={16} />
+              Add Stream
+            </button>
+            <button
+              onClick={() => setViewingStreamId(null)}
+              className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm transition"
+            >
+              View all
+            </button>
           </div>
 
+          {/* Stream list */}
+          <div className="flex gap-2 flex-wrap">
+            {streams.map((stream) => (
+              stream.username && (
+                <div key={`summary-${stream.id}`} className="bg-gray-700 rounded-lg p-2 flex items-center gap-2">
+                  <span className="text-sm font-semibold text-white">{stream.username}</span>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => setViewingStreamId(stream.id)}
+                      className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs transition"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => removeStream(stream.id)}
+                      className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs transition"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+
+        <div>
           {/* Right side - video grid */}
-          <div className="flex-1">
-            <div className={`grid ${getGridClass()} gap-4`}>
-              {streams.map((stream) => {
+          <div className="flex flex-col">
+            <div className={`grid gap-1 w-full h-[800px]`}
+              style={{
+                gridTemplateColumns: viewingStreamId ? '1fr' : `repeat(${getGridColumns()}, 1fr)`,
+                gridAutoRows: 'minmax(0, 1fr)'
+              }}>
+              {(viewingStreamId ? streams.filter(s => s.id === viewingStreamId) : streams).map((stream) => {
                 const embedUrl = getEmbedUrl(stream);
                 return (
-                  <div key={stream.id} className="bg-gray-800 rounded-lg overflow-hidden aspect-video">
+                  <div key={stream.id} className="bg-gray-800 rounded-lg overflow-hidden">
                     {embedUrl ? (
                       <iframe
                         src={embedUrl}
@@ -366,7 +342,7 @@ export default function MultiStreamViewer() {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-500">
                         <div className="text-center">
-                          <Grid size={48} className="mx-auto mb-2 opacity-50" />
+                          <Grid size={96} className="mx-auto mb-2 opacity-50" />
                           <p>Enter a {stream.platform} channel name</p>
                         </div>
                       </div>
