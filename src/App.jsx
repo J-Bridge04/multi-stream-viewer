@@ -171,7 +171,13 @@ export default function MultiStreamViewer() {
 
   const addStream = () => {
     if (!searchInput.trim()) return;
-    if (streams.length >= 12) return;
+    if (streams.length >= 12) {
+      alert('You can only add a maximum of 12 streams.');
+      return;
+    }
+    if (selectedPlatform === 'kick' || selectedPlatform === 'youtube') {
+      alert('⚠️ Warning: If you are streaming this website on Twitch and you pull up a Kick or YouTube streamer, Twitch may ban you. This is not my responsibility.');
+    }
     setStreams([...streams, { 
       id: Date.now(), 
       url: '', 
