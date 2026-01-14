@@ -7,6 +7,7 @@ export default function MultiStreamViewer() {
   const [twitchToken, setTwitchToken] = useState(null);
   const [userToken, setUserToken] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [followedChannels, setFollowedChannels] = useState([]);
   const [suggestions, setSuggestions] = useState({});
   const [activeSuggestions, setActiveSuggestions] = useState(null);
   const [showSidebar, setShowSidebar] = useState(true);
@@ -75,6 +76,23 @@ export default function MultiStreamViewer() {
               profile_image_url: user.profile_image_url,
             });
             localStorage.setItem('twitchUserData', JSON.stringify(user));
+            
+            // Fetch followed channels
+            try {
+              const followsResponse = await fetch(`https://api.twitch.tv/helix/users/follows?user_id=${user.id}&first=100`, {
+                headers: {
+                  'Client-ID': import.meta.env.VITE_TWITCH_CLIENT_ID,
+                  'Authorization': `Bearer ${token}`,
+                },
+              });
+              
+              if (followsResponse.ok) {
+                const followsData = await followsResponse.json();
+                setFollowedChannels(followsData.data);
+              }
+            } catch (error) {
+              console.error('Error fetching followed channels:', error);
+            }
           }
         } catch (error) {
           console.error('Error getting user info:', error);
@@ -154,7 +172,7 @@ export default function MultiStreamViewer() {
   const handleTwitchSignIn = () => {
     const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
     const redirectUri = `${window.location.origin}${window.location.pathname}`;
-    const scope = 'user:read:email';
+    const scope = 'user:read:email user:read:follows';
 
     const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}`;
 
@@ -237,29 +255,48 @@ export default function MultiStreamViewer() {
       <div className="w-full flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Multi-Stream Viewer</h1>
-          <div className="flex items-center gap-2">
-            {userData ? (
-              <div className="flex items-center gap-3 bg-green-900 px-4 py-2 rounded-lg">
-                <img 
-                  src={userData.profile_image_url} 
-                  alt={userData.display_name}
-                  className="w-8 h-8 rounded-full"
-                />
-                <span className="text-sm font-medium">{userData.display_name}</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {userData ? (
+                <div className="flex items-center gap-3 bg-green-900 px-4 py-2 rounded-lg">
+                  <img 
+                    src={userData.profile_image_url} 
+                    alt={userData.display_name}
+                    className="w-8 h-8 rounded-full"
+                  />
+                  <span className="text-sm font-medium">{userData.display_name}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={handleLogout}
-                  className="text-red-400 hover:text-red-300"
+                  onClick={handleTwitchSignIn}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition"
                 >
-                  <X size={18} />
+                  <Plus size={20}/>
+                  Sign in with Twitch
                 </button>
-              </div>
-            ) : (
+              )}
+            </div>
+            {userData && followedChannels.length === 0 && (
               <button
-                onClick={handleTwitchSignIn}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition"
+                onClick={() => {
+                  const followsResponse = fetch(`https://api.twitch.tv/helix/users/follows?user_id=${userData.id}&first=100`, {
+                    headers: {
+                      'Client-ID': import.meta.env.VITE_TWITCH_CLIENT_ID,
+                      'Authorization': `Bearer ${userToken}`,
+                    },
+                  }).then(res => res.json()).then(data => {
+                    setFollowedChannels(data.data);
+                  }).catch(err => console.error('Error loading followed channels:', err));
+                }}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition text-sm font-medium"
               >
-                <Plus size={20}/>
-                Sign in with Twitch
+                Load Followed Channels
               </button>
             )}
           </div>
@@ -324,6 +361,35 @@ export default function MultiStreamViewer() {
               )
             ))}
           </div>
+
+          {/* Followed channels section */}
+          {userData && followedChannels.length > 0 && (
+            <div>
+              <p className="text-sm font-semibold text-white mb-2">Your Followed Channels:</p>
+              <div className="flex gap-2 flex-wrap">
+                {followedChannels.map((channel) => (
+                  <button
+                    key={channel.to_id}
+                    onClick={() => {
+                      if (streams.length >= 12) {
+                        alert('You can only add a maximum of 12 streams.');
+                        return;
+                      }
+                      setStreams([...streams, {
+                        id: Date.now(),
+                        url: '',
+                        platform: 'twitch',
+                        username: channel.to_login
+                      }]);
+                    }}
+                    className="bg-green-700 hover:bg-green-600 rounded-lg p-2 text-sm font-semibold text-white transition"
+                  >
+                    + {channel.to_name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
