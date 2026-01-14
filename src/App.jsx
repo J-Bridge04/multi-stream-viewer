@@ -255,48 +255,29 @@ export default function MultiStreamViewer() {
       <div className="w-full flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Multi-Stream Viewer</h1>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              {userData ? (
-                <div className="flex items-center gap-3 bg-green-900 px-4 py-2 rounded-lg">
-                  <img 
-                    src={userData.profile_image_url} 
-                    alt={userData.display_name}
-                    className="w-8 h-8 rounded-full"
-                  />
-                  <span className="text-sm font-medium">{userData.display_name}</span>
-                  <button
-                    onClick={handleLogout}
-                    className="text-red-400 hover:text-red-300"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              ) : (
+          <div className="flex items-center gap-2">
+            {userData ? (
+              <div className="flex items-center gap-3 bg-green-900 px-4 py-2 rounded-lg">
+                <img 
+                  src={userData.profile_image_url} 
+                  alt={userData.display_name}
+                  className="w-8 h-8 rounded-full"
+                />
+                <span className="text-sm font-medium">{userData.display_name}</span>
                 <button
-                  onClick={handleTwitchSignIn}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition"
+                  onClick={handleLogout}
+                  className="text-red-400 hover:text-red-300"
                 >
-                  <Plus size={20}/>
-                  Sign in with Twitch
+                  <X size={18} />
                 </button>
-              )}
-            </div>
-            {userData && followedChannels.length === 0 && (
+              </div>
+            ) : (
               <button
-                onClick={() => {
-                  const followsResponse = fetch(`https://api.twitch.tv/helix/users/follows?user_id=${userData.id}&first=100`, {
-                    headers: {
-                      'Client-ID': import.meta.env.VITE_TWITCH_CLIENT_ID,
-                      'Authorization': `Bearer ${userToken}`,
-                    },
-                  }).then(res => res.json()).then(data => {
-                    setFollowedChannels(data.data);
-                  }).catch(err => console.error('Error loading followed channels:', err));
-                }}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition text-sm font-medium"
+                onClick={handleTwitchSignIn}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition"
               >
-                Load Followed Channels
+                <Plus size={20}/>
+                Sign in with Twitch
               </button>
             )}
           </div>
