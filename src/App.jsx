@@ -7,7 +7,6 @@ export default function MultiStreamViewer() {
   const [twitchToken, setTwitchToken] = useState(null);
   const [userToken, setUserToken] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [followedChannels, setFollowedChannels] = useState([]);
   const [suggestions, setSuggestions] = useState({});
   const [activeSuggestions, setActiveSuggestions] = useState(null);
   const [showSidebar, setShowSidebar] = useState(true);
@@ -76,23 +75,6 @@ export default function MultiStreamViewer() {
               profile_image_url: user.profile_image_url,
             });
             localStorage.setItem('twitchUserData', JSON.stringify(user));
-            
-            // Fetch followed channels
-            try {
-              const followsResponse = await fetch(`https://api.twitch.tv/helix/users/follows?user_id=${user.id}&first=100`, {
-                headers: {
-                  'Client-ID': import.meta.env.VITE_TWITCH_CLIENT_ID,
-                  'Authorization': `Bearer ${token}`,
-                },
-              });
-              
-              if (followsResponse.ok) {
-                const followsData = await followsResponse.json();
-                setFollowedChannels(followsData.data);
-              }
-            } catch (error) {
-              console.error('Error fetching followed channels:', error);
-            }
           }
         } catch (error) {
           console.error('Error getting user info:', error);
@@ -172,7 +154,7 @@ export default function MultiStreamViewer() {
   const handleTwitchSignIn = () => {
     const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID;
     const redirectUri = `${window.location.origin}${window.location.pathname}`;
-    const scope = 'user:read:email user:read:follows';
+    const scope = 'user:read:email';
 
     const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}`;
 
@@ -342,40 +324,10 @@ export default function MultiStreamViewer() {
               )
             ))}
           </div>
-
-          {/* Followed channels section */}
-          {userData && followedChannels.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-white mb-2">Your Followed Channels:</p>
-              <div className="flex gap-2 flex-wrap">
-                {followedChannels.map((channel) => (
-                  <button
-                    key={channel.to_id}
-                    onClick={() => {
-                      if (streams.length >= 12) {
-                        alert('You can only add a maximum of 12 streams.');
-                        return;
-                      }
-                      setStreams([...streams, {
-                        id: Date.now(),
-                        url: '',
-                        platform: 'twitch',
-                        username: channel.to_login
-                      }]);
-                    }}
-                    className="bg-green-700 hover:bg-green-600 rounded-lg p-2 text-sm font-semibold text-white transition"
-                  >
-                    + {channel.to_name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        <div>
-          {/* Right side - video grid */}
-          <div className="flex flex-col">
+        {/* Right side - video grid */}
+        <div className="flex flex-col">
             <div className={`grid gap-1 w-full h-[800px]`}
               style={{
                 gridTemplateColumns: viewingStreamId ? '1fr' : `repeat(${getGridColumns()}, 1fr)`,
@@ -404,7 +356,6 @@ export default function MultiStreamViewer() {
                 );
               })}
             </div>
-          </div>
         </div>
 
         <div className="mt-6 bg-gray-800 p-4 rounded-lg">
