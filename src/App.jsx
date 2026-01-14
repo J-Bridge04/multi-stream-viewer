@@ -204,18 +204,21 @@ export default function MultiStreamViewer() {
 
   const getEmbedUrl = (stream) => {
     if (!stream.username) return '';
-    
-    switch(stream.platform) {
+
+    const username = stream.username.trim();
+    switch (stream.platform) {
       case 'twitch':
-        return `https://player.twitch.tv/?channel=${stream.username}&parent=${window.location.hostname}`;
-      case 'youtube':
+        return `https://player.twitch.tv/?channel=${username}&parent=${window.location.hostname}`;
+      case 'youtube': {
         // Username can be video ID or channel handle
-        const isVideoId = stream.username.length === 11;
-        return isVideoId 
-          ? `https://www.youtube.com/embed/${stream.username}?autoplay=1`
-          : `https://www.youtube.com/embed/live_stream?channel=${stream.username}&autoplay=1`;
+        const isVideoId = username.length === 11;
+        return isVideoId
+          ? `https://www.youtube.com/embed/${username}?autoplay=1`
+          : `https://www.youtube.com/embed/live_stream?channel=${username}&autoplay=1`;
+      }
       case 'kick':
-        return `https://player.kick.com/${stream.username}`;
+        // Kick embed prefers the player endpoint with autoplay + muted for reliable load
+        return `https://player.kick.com/${username}?autoplay=true&muted=true`;
       default:
         return '';
     }
