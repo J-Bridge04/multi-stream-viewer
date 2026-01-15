@@ -58,6 +58,8 @@ npm run dev
 
 ## 🎮 Usage
 
+## NOW HOSTED ON https://streamhub-b8q.pages.dev/
+
 ### Adding Streams
 
 1. Click the **"Add Stream"** button in the sidebar
